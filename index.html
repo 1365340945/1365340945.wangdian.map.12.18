@@ -8,48 +8,8 @@
     <script src="https://cdn.bootcdn.net/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
     
     <style>
-        /* ========== 新增：密码验证样式 ========== */
-        #auth-container {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100vw;
-            height: 100vh;
-            background: #f5f5f5;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            z-index: 99999; /* 确保在所有元素最上层 */
-        }
-        #auth-input {
-            padding: 12px 20px;
-            font-size: 16px;
-            width: 300px;
-            margin-bottom: 20px;
-            border: 1px solid #ddd;
-            border-radius: 4px;
-        }
-        #auth-btn {
-            padding: 12px 40px;
-            font-size: 16px;
-            background: #007bff;
-            color: white;
-            border: none;
-            border-radius: 4px;
-            cursor: pointer;
-        }
-        #auth-btn:hover {
-            background: #0056b3;
-        }
-        #auth-error {
-            color: red;
-            margin-top: 10px;
-            display: none;
-        }
-        /* ========== 原有样式（完全保留） ========== */
         * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { overflow: hidden; }
+        body { overflow: hidden; background: #fff; } /* 背景设为白色，完全空白 */
         .map-controls {
             position: absolute;
             top: 10px;
@@ -62,6 +22,7 @@
             transition: all 0.3s ease;
             width: 280px;
             overflow: hidden;
+            display: none; /* 初始隐藏 */
         }
         .map-controls.collapsed { width: 50px; }
         .control-header {
@@ -124,8 +85,6 @@
             font-size: 12px;
             transition: background 0.2s;
         }
-        .edit-btn { background: #28a745; }
-        .edit-btn.active { background: #dc3545; }
         .select-btn { background: #007bff; }
         .select-btn.active { background: #dc3545; }
         .calc-btn { background: #17a2b8; }
@@ -151,7 +110,12 @@
             overflow-y: auto;
             line-height: 1.4;
         }
-        #map { width: 100vw; height: 100vh; background: #f5f5f5; }
+        #map { 
+            width: 100vw; 
+            height: 100vh; 
+            background: #f5f5f5; 
+            display: none; /* 初始隐藏 */
+        }
         .marker-color-red { filter: hue-rotate(-15deg) saturate(4) !important; }
         .marker-color-blue { filter: hue-rotate(190deg) saturate(4) !important; }
         .marker-color-green { filter: hue-rotate(110deg) saturate(4) !important; }
@@ -218,15 +182,6 @@
     </style>
 </head>
 <body>
-    <!-- ========== 新增：密码验证界面（放在最前面） ========== -->
-    <div id="auth-container">
-        <h2>请输入访问密码</h2>
-        <input type="password" id="auth-input" placeholder="请输入密码">
-        <button id="auth-btn">验证并进入</button>
-        <div id="auth-error">密码错误，请重新输入！</div>
-    </div>
-
-    <!-- ========== 原有HTML结构（完全保留） ========== -->
     <div class="map-controls" id="mapControls">
         <div class="control-header" id="controlHeader">
             <h3>地图操作面板</h3>
@@ -250,10 +205,7 @@
                 </select>
                 <button id="locationBtn">定位到所选区域</button>
             </div>
-            <div class="sub-title">编辑模式</div>
-            <div class="btn-group">
-                <button id="editBtn" class="edit-btn">开启编辑模式</button>
-            </div>
+            <!-- 已删除编辑模式相关按钮 -->
             <div class="sub-title">距离计算工具</div>
             <div class="btn-group">
                 <button id="selectMarkerBtn" class="select-btn">选择点位（点击标记）</button>
@@ -271,62 +223,6 @@
     <div id="map"></div>
 
     <script>
-        // ========== 新增：密码验证核心逻辑（简化优化，解决打不开问题） ==========
-        // 【请修改这里】自定义你的密码（建议设为复杂字符串，比如：Map@2025!123）
-        const AUTH_KEY = "zhongjincaifu"; 
-        // 可选：是否开启本地缓存（验证一次后7天内无需重复输入）
-        const ENABLE_CACHE = true; 
-        const CACHE_EXPIRE = 7 * 24 * 60 * 60 * 1000; // 7天有效期
-
-        // 元素获取（确保DOM加载完成后获取）
-        let authContainer, authInput, authBtn, authError;
-        let mapInitialized = false; // 防止重复初始化
-
-        // 验证密码并进入地图
-        function verifyPassword() {
-            const inputPassword = authInput.value.trim();
-            if (inputPassword === AUTH_KEY) {
-                // 验证成功：隐藏验证界面
-                authContainer.style.display = 'none';
-                // 可选：写入本地缓存
-                if (ENABLE_CACHE) {
-                    localStorage.setItem('map_auth_cache', JSON.stringify({
-                        key: AUTH_KEY,
-                        expireTime: Date.now() + CACHE_EXPIRE
-                    }));
-                }
-                // 初始化地图（确保只初始化一次）
-                if (!mapInitialized) {
-                    initMap();
-                    mapInitialized = true;
-                }
-            } else {
-                // 验证失败：提示错误，清空输入
-                authError.style.display = 'block';
-                authInput.value = '';
-                // 3秒后隐藏错误提示
-                setTimeout(() => {
-                    authError.style.display = 'none';
-                }, 3000);
-            }
-        }
-
-        // 检查本地缓存（如果有有效缓存，直接进入地图）
-        function checkCache() {
-            if (!ENABLE_CACHE) return false;
-            try {
-                const cache = localStorage.getItem('map_auth_cache');
-                if (!cache) return false;
-                const { key, expireTime } = JSON.parse(cache);
-                // 验证缓存是否有效
-                return key === AUTH_KEY && Date.now() < expireTime;
-            } catch (e) {
-                localStorage.removeItem('map_auth_cache');
-                return false;
-            }
-        }
-
-        // ========== 原有代码（完全未修改，直接保留） ==========
         // 扩展L.Icon
         L.Icon.ColorMarker = L.Icon.extend({
             options: {
@@ -388,7 +284,6 @@
 
         // 核心配置
         let map;
-        let isEditMode = false;
         let isSelectingMarkers = false;
         let selectedPoints = [];
         let locationMarker = null; 
@@ -952,7 +847,19 @@
             "成都市": { latlng: [30.659462, 104.065735], zoom: 12 }, "贵阳市": { latlng: [26.578343, 106.713478], zoom: 12 },
             "昆明市": { latlng: [25.040609, 102.712251], zoom: 12 }, "西安市": { latlng: [34.263161, 108.948024], zoom: 12 },
             "兰州市": { latlng: [36.058039, 103.823557], zoom: 12 }, "西宁市": { latlng: [36.617633, 101.778919], zoom: 11 },
-            "银川市": { latlng: [38.46637, 106.278179], zoom: 12 }, "乌鲁木齐市": { latlng: [43.792818, 87.617735], zoom: 11 }
+            "银川市": { latlng: [38.46637, 106.278179], zoom: 12 }, "乌鲁木齐市": { latlng: [43.792818, 87.617735], zoom: 11 },
+			    // 新增指定城市定位
+    "深圳市": { latlng: [22.543096, 114.057865], zoom: 12 },
+    "烟台市": { latlng: [37.540725, 121.389052], zoom: 12 },
+    "东莞市": { latlng: [23.043111, 113.742217], zoom: 12 },
+    "苏州市": { latlng: [31.304959, 120.619585], zoom: 12 },
+    "常州市": { latlng: [31.799899, 119.976805], zoom: 12 },
+    "佛山市": { latlng: [23.020664, 113.106415], zoom: 12 },
+    "泉州市": { latlng: [24.905298, 118.656749], zoom: 12 },
+    "宁波市": { latlng: [29.868331, 121.548056], zoom: 12 },
+    "青岛市": { latlng: [36.067192, 120.382762], zoom: 12 },
+    "无锡市": { latlng: [31.597952, 120.301585], zoom: 12 },
+    "南通市": { latlng: [31.98998, 120.859828], zoom: 12 }
         };
 
         // 工具函数
@@ -1029,7 +936,7 @@
             const markerIcon = L.icon.colorMarker({ colorClass: colorClass });
             const marker = L.marker(latlng, { 
                 icon: markerIcon, 
-                draggable: false, 
+                draggable: false, // 永久禁用拖动（删除编辑功能）
                 place: place 
             });
             const labelIcon = L.divIcon({
@@ -1045,12 +952,7 @@
                 offset: L.point(0, 45)
             });
             marker.on('click', () => toggleMarkerSelect(marker, place));
-            // 拖动仅修改展示位置，不触碰任何原始数据
-            marker.on('drag', (e) => {
-                if (isEditMode) {
-                    labelMarker.setLatLng(e.latlng);
-                }
-            });
+            // 完全删除拖动相关逻辑（编辑功能已移除）
             if (colorMarkerGroups[colorClass]) {
                 colorMarkerGroups[colorClass].markers.push(marker);
                 colorMarkerGroups[colorClass].labels.push(labelMarker);
@@ -1109,7 +1011,6 @@
 		
 
         function toggleMarkersByView() {
-            if (isEditMode) return;
             const zoomThreshold = 6; 
             handleSingleColorMarkerInView('marker-color-red', zoomThreshold);
             handleSingleColorMarkerInView('marker-color-green', zoomThreshold);
@@ -1184,8 +1085,8 @@
 			});
         }
 
-        // 初始化地图
-        function initMap() {
+        // 初始化地图（核心修改：使用用户输入的密码作为天地图密钥）
+        function initMap(password) {
             map = L.map('map', { 
 				preferCanvas: true, 
 				zoomControl: false, 
@@ -1193,14 +1094,16 @@
 				maxZoom: 18,
 				minZoom: 3
 			}).setView([39.914885, 116.403874], 14);
-			L.tileLayer('http://t0.tianditu.gov.cn/DataServer?T=vec_w&x={x}&y={y}&l={z}&tk=bd2209e459772c4574ea71538ad06d99', {
+			
+			// 动态套入用户输入的密码（作为天地图密钥）
+			L.tileLayer(`http://t0.tianditu.gov.cn/DataServer?T=vec_w&x={x}&y={y}&l={z}&tk=${password}`, {
 				subdomains: ['0'],
 				maxZoom: 18,
 				minZoom: 3,
 				crossOrigin: 'anonymous',
 				attribution: '© 天地图'
 			}).addTo(map);
-			L.tileLayer('http://t0.tianditu.gov.cn/DataServer?T=cva_w&x={x}&y={y}&l={z}&tk=bd2209e459772c4574ea71538ad06d99', {
+			L.tileLayer(`http://t0.tianditu.gov.cn/DataServer?T=cva_w&x={x}&y={y}&l={z}&tk=${password}`, {
 				subdomains: ['0'],
 				maxZoom: 18,
 				minZoom: 3,
@@ -1214,7 +1117,7 @@
                     ...place,
                     gcjLat: place.lat, // 原始GCJ坐标（永久保留，用于计算）
                     gcjLon: place.lng,
-                    lat: wgs.lat,      // 转换后的展示坐标（可拖动修改）
+                    lat: wgs.lat,      // 转换后的展示坐标
                     lng: wgs.lon
                 };
                 const { marker, labelMarker } = createMarkerWithLabel(
@@ -1237,27 +1140,6 @@
             document.getElementById('controlHeader').addEventListener('click', () => {
                 controls.classList.toggle('collapsed');
                 collapseBtn.innerText = controls.classList.contains('collapsed') ? '≡' : '≡';
-            });
-
-            // 【核心修改】编辑模式：关闭时不恢复坐标，仅禁用拖动
-            const editBtn = document.getElementById('editBtn');
-            editBtn.addEventListener('click', () => {
-                isEditMode = !isEditMode;
-                editBtn.classList.toggle('active');
-                editBtn.innerText = isEditMode ? '关闭编辑模式' : '开启编辑模式';
-                
-                fixedMarkers.forEach(marker => {
-                    if (isEditMode) {
-                        marker.dragging.enable(); // 开启编辑：允许拖动
-                    } else {
-                        marker.dragging.disable(); // 关闭编辑：仅禁用拖动，不恢复坐标
-                        // 【删除了恢复坐标的所有逻辑】
-                    }
-                });
-                
-                updateDistanceResult(isEditMode 
-                    ? '编辑模式已开启，可拖动标记调整展示位置（修改后不恢复）' 
-                    : '编辑模式已关闭，标记保留拖动后的位置（测距仍用原始坐标）');
             });
 
             // 选点模式
@@ -1289,30 +1171,64 @@
             document.getElementById('clearSelectBtn').addEventListener('click', clearSelectedMarkers);
         }
 
-        // ========== 新增：页面加载后初始化密码验证逻辑 ==========
-        window.addEventListener('DOMContentLoaded', () => {
-            // 确保DOM完全加载后再获取验证相关元素
-            authContainer = document.getElementById('auth-container');
-            authInput = document.getElementById('auth-input');
-            authBtn = document.getElementById('auth-btn');
-            authError = document.getElementById('auth-error');
+// 页面加载初始化（新增缓存逻辑+密码输入+未输入时完全空白）
+window.addEventListener('DOMContentLoaded', () => {
+    if (!L) return; // 加载失败也保持空白
 
-            // 先检查缓存，有则直接进入
-            if (checkCache()) {
-                authContainer.style.display = 'none';
-                if (!mapInitialized) {
-                    initMap();
-                    mapInitialized = true;
-                }
-            } else {
-                // 绑定验证按钮点击事件
-                authBtn.addEventListener('click', verifyPassword);
-                // 绑定回车触发验证
-                authInput.addEventListener('keydown', (e) => {
-                    if (e.key === 'Enter') verifyPassword();
-                });
+    // 缓存相关工具函数
+    // 1. 读取缓存的密码（带过期校验）
+    function getCachedPassword() {
+        try {
+            const cached = localStorage.getItem('map_access_password');
+            if (!cached) return null;
+            
+            const { password, expireTime } = JSON.parse(cached);
+            // 校验是否过期（7天有效期）
+            if (Date.now() > expireTime) {
+                localStorage.removeItem('map_access_password');
+                return null;
             }
-        });
+            return password;
+        } catch (e) {
+            localStorage.removeItem('map_access_password');
+            return null;
+        }
+    }
+
+    // 2. 缓存密码（有效期7天）
+    function setCachedPassword(password) {
+        try {
+            const expireTime = Date.now() + 7 * 24 * 60 * 60 * 1000; // 7天毫秒数
+            localStorage.setItem('map_access_password', JSON.stringify({
+                password: password,
+                expireTime: expireTime
+            }));
+        } catch (e) {
+            console.warn('密码缓存失败:', e);
+        }
+    }
+
+    // 优先读取缓存密码
+    let password = getCachedPassword();
+    
+    // 缓存无有效密码则弹窗输入
+    if (!password) {
+        password = prompt('请输入访问密码（必填）：', '');
+        
+        // 未输入密码：保持空白
+        if (!password || password.trim() === '') {
+            return;
+        }
+        
+        // 输入密码后缓存（7天有效期）
+        setCachedPassword(password.trim());
+    }
+
+    // 显示地图和面板，初始化
+    document.getElementById('map').style.display = 'block';
+    document.getElementById('mapControls').style.display = 'block';
+    initMap(password.trim());
+});
     </script>
 </body>
 </html>
